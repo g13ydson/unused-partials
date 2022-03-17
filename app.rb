@@ -1,7 +1,7 @@
 require "byebug"
 
 class UnusedPartial
-  EXT = %w[.html.erb .text.erb .pdf.erb .erb .html.haml .text.haml .haml .rhtml .html.slim slim]
+  EXT = %w[.html.erb .text.erb .pdf.erb .erb .html.haml .text.haml .haml .rhtml .html.slim slim .liquid]
 
   def initialize(view_path:)
     @view_path = view_path
@@ -88,8 +88,10 @@ class UnusedPartial
     partial = /:partial\s*=>\s*|partial:\s*/
     render = /\brender\s*(?:\(\s*)?/
     esi_include = /\besi_include\s*(?:\(\s*)?/
+    liquid_include = /\binclude\s*(?:\(\s*)?/
     partials = []
     dynamic = {}
+
     files.each do |file|
       File.open(file) do |f|
         f.each do |line|
@@ -97,14 +99,14 @@ class UnusedPartial
             .encode("UTF-8", "binary", invalid: :replace, undef: :replace, replace: "")
             .strip
 
-          if line =~ %r{(?:#{partial}|#{render}|#{esi_include})(['"])/?(#{filename})#{extension}*\1}
+          if line =~ %r{(?:#{partial}|#{render}|#{esi_include}|#{liquid_include})(['"])/?(#{filename})#{extension}*\1}
             match = $2
             if match.index("/")
 
               path = match.split("/")[0...-1].join("/")
               file_name = "_#{match.split("/")[-1]}"
-
-              full_path = "views/#{path}/#{file_name}"
+              directory = file.split("/")[0] == "views" ? "views" : file.split("/")[0] + "/views"
+              full_path = "#{directory}/#{path}/#{file_name}"
             else
               full_path = "#{file.split("/")[0...-1].join("/")}/_#{match}"
             end
@@ -121,7 +123,10 @@ class UnusedPartial
   end
 
   def check_extension_path(file)
-    "#{file}#{EXT.find { |e| File.exist? file + e }}"
+    file_ext = EXT.find { |e| File.exist?(file + e) }
+    return "#{file}#{file_ext}" if file_ext
+    file = file.gsub("views", "views/partials").split("/").uniq.join("/")
+    "#{file}#{EXT.find { |e| File.exist?(file + e) }}"
   end
 end
 UnusedPartial.new(view_path: ARGV.first).find
