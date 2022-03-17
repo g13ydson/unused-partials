@@ -8,40 +8,39 @@ class UnusedPartial
   end
 
   def find
-    tree, dynamic = Dir.chdir(@view_path) { used_partials("views") }
+    tree, dynamic = Dir.chdir(@view_path) { used_partials }
+    result = ""
     tree.each do |idx, level|
-      indent = " " * idx * 2
-      h_indent = idx == 1 ? "" : "\n" + " " * (idx - 1) * 2
-
-      if idx == 1
-        puts "#{h_indent}The following partials are not referenced directly by any code:"
+      result += if idx == 1
+        "The following partials are not referenced directly by any code:\n"
       else
-        puts "#{h_indent}The following partials are only referenced directly by the partials above:"
+        "The following partials are only referenced directly by the partials above:\n"
       end
       level[:unused].sort.each do |partial|
-        puts "#{indent}#{partial}"
+        result += "  #{partial}\n"
       end
     end
 
     unless dynamic.empty?
-      puts "\n\nSome of the partials above (at any level) might be referenced dynamically by the following lines of code:"
+      result += "Some of the partials above (at any level) might be referenced dynamically by the following lines of code:\n"
       dynamic.sort.map do |file, lines|
         lines.each do |line|
-          puts "  #{file}:#{line}"
+          result += "  #{file}:#{line}\n"
         end
       end
     end
+    puts "checks the result.txt file"
+    File.write("result.txt", result)
   end
 
-  def used_partials(root)
-    raise "#{Dir.pwd} does not have '#{root}' directory" unless File.directory? root
+  def used_partials
     files = []
-    each_file(root) do |file|
+    each_file do |file|
       files << file
     end
     tree = {}
     level = 1
-    existent = existent_partials(root)
+    existent = existent_partials
     top_dynamic = nil
     loop do
       used, dynamic = process_partials(files)
@@ -62,9 +61,9 @@ class UnusedPartial
     [tree, top_dynamic]
   end
 
-  def existent_partials(root)
+  def existent_partials
     partials = []
-    each_file(root) do |file|
+    each_file do |file|
       if /^.*\/_.*$/.match?(file)
         partials << file.strip
       end
@@ -73,12 +72,11 @@ class UnusedPartial
     partials
   end
 
-  def each_file(root, &block)
-    files = Dir.glob("#{root}/*")
+  def each_file(&block)
+    files = Dir.glob("**/views/**/*")
+
     files.each do |file|
-      if File.directory? file
-        each_file(file) { |file| yield file }
-      else
+      unless File.directory? file
         yield file
       end
     end
